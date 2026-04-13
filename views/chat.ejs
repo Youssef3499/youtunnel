@@ -1,0 +1,322 @@
+<%- include('partials/header', { title: 'YouTunnel — Chat', extraHead: '<script src="/socket.io/socket.io.js"></script>' }) %>
+
+<div class="app-shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand-box">
+      <div class="brand-icon">⬡</div>
+      <div>
+        <h2>YouTunnel</h2>
+        <p class="muted small"><%= currentUser.role === 'tunnelmaster' ? '⚡ TunnelMaster' : currentUser.role === 'admin' ? '🛡 Group Admin' : '● Member' %></p>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Your Groups</div>
+      <% if (groups.length === 0) { %>
+        <p class="muted small" style="padding:8px 12px;">No groups yet.</p>
+      <% } %>
+      <% groups.forEach(group => { %>
+        <a href="/chat?group=<%= group.id %>" class="group-link">
+          <div class="group-tile <%= selectedGroup && selectedGroup.id === group.id ? 'active' : '' %>">
+            <% if (group.image) { %>
+              <img src="<%= group.image %>" class="group-thumb" alt="group"/>
+            <% } else { %>
+              <div class="group-thumb-placeholder">⬡</div>
+            <% } %>
+            <div class="group-tile-info">
+              <strong><%= group.name %></strong>
+              <% if (group.chatPaused) { %><span class="badge-paused">Paused</span><% } %>
+              <% if (group.isClosed) { %><span class="badge-closed">Closed</span><% } %>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Direct Messages</div>
+      <% allUsers.forEach(user => { %>
+        <a href="/dm/<%= user.id %>" class="group-link">
+          <div class="group-tile">
+            <% if (user.profileImage) { %>
+              <img src="<%= user.profileImage %>" class="group-thumb" alt="profile"/>
+            <% } else { %>
+              <div class="group-thumb-placeholder small-ph"><%= (user.alias||'?')[0].toUpperCase() %></div>
+            <% } %>
+            <div class="group-tile-info">
+              <strong><%= user.alias %></strong>
+              <span class="online-dot <%= user.isOnline ? 'online' : 'offline' %>"></span>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Your Profile</div>
+      <form action="/profile" method="POST" enctype="multipart/form-data" class="stack-form">
+        <input name="fakeUsername" value="<%= currentUser.fakeUsername || '' %>" placeholder="Display name" />
+        <textarea name="bio" placeholder="Short bio" rows="2"><%= currentUser.bio || '' %></textarea>
+        <input type="file" name="profileImage" accept="image/*" class="file-input"/>
+        <button class="btn btn-sm" type="submit">Update Profile</button>
+      </form>
+    </div>
+
+
+    <% if (typeof hiddenGroupsList !== "undefined" && hiddenGroupsList.length > 0) { %>
+      <div class="side-section">
+        <div class="side-label" style="color:#dc2626;">Hidden Groups</div>
+        <% hiddenGroupsList.forEach(group => { %>
+          <div class="group-tile" style="opacity:0.55;">
+            <% if (group.image) { %><img src="<%= group.image %>" class="group-thumb" alt="group"/><% } else { %><div class="group-thumb-placeholder">⬡</div><% } %>
+            <div class="group-tile-info">
+              <strong><%= group.name %></strong>
+              <form method="POST" action="/groups/<%= group.id %>/unhide" style="margin:0;">
+                <button class="mini-link" type="submit" style="color:#22c55e;font-size:11px;">⟳ Unhide</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+    <div class="side-actions">
+      <% if (currentUser.role === 'tunnelmaster') { %>
+        <a class="btn btn-danger" href="/admin">Admin Panel</a>
+      <% } %>
+      <a class="btn btn-ghost" href="/logout">Logout</a>
+    </div>
+
+    <div class="theme-switcher">
+      <button class="theme-btn" onclick="setTheme('dark-green')" id="t1">🟢 Cyber</button>
+      <button class="theme-btn" onclick="setTheme('dark')" id="t2">🟣 Dark</button>
+      <button class="theme-btn" onclick="setTheme('gray')" id="t3">⬜ Gray</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="chat-main">
+    <% if (welcome) { %>
+      <div class="welcome-banner">⚡ Access granted. Welcome to the tunnel, <strong><%= currentUser.alias %></strong>.</div>
+    <% } %>
+
+    <% if (selectedGroup) { %>
+      <!-- GROUP HEADER -->
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <% if (selectedGroup.image) { %>
+            <img src="<%= selectedGroup.image %>" class="group-hero-img" alt="group"/>
+          <% } else { %>
+            <div class="group-hero-placeholder">⬡</div>
+          <% } %>
+          <div class="chat-header-info">
+            <h1><%= selectedGroup.name %></h1>
+            <% if (selectedGroup.bio) { %><p class="muted"><%= selectedGroup.bio %></p><% } %>
+            <div class="header-meta">
+              <span><%= users.length %> members</span>
+              <% if (selectedGroup.chatPaused) { %><span class="badge-paused">Chat Paused</span><% } %>
+              <% if (selectedGroup.isClosed) { %><span class="badge-closed">Closed</span><% } %>
+            </div>
+          </div>
+        </div>
+        <div class="member-cloud">
+          <% users.forEach(user => { %>
+            <span class="member-pill">
+              <span class="online-dot <%= user.isOnline ? 'online' : 'offline' %>"></span>
+              <%= user.alias %>
+            </span>
+          <% }) %>
+        </div>
+      </div>
+
+      <!-- GROUP CONTROLS -->
+      <div class="controls-bar">
+        <form method="POST" action="/groups/<%= selectedGroup.id %>/leave">
+          <button class="btn btn-ghost btn-sm" type="submit">Leave</button>
+        </form>
+        <form method="POST" action="/groups/<%= selectedGroup.id %>/hide">
+          <button class="btn btn-ghost btn-sm" type="submit">Hide</button>
+        </form>
+
+        <% const isTM = currentUser.role === 'tunnelmaster'; %>
+        <% const isGA = isTM || (users.find(u => u.id === currentUser.id && u.isAdmin)); %>
+
+        <% if (isGA) { %>
+          <form method="POST" action="/groups/<%= selectedGroup.id %>/toggle-pause">
+            <button class="btn btn-sm" type="submit"><%= selectedGroup.chatPaused ? 'Resume Chat' : 'Pause Chat' %></button>
+          </form>
+          <form method="POST" action="/groups/<%= selectedGroup.id %>/toggle-close">
+            <button class="btn btn-sm" type="submit"><%= selectedGroup.isClosed ? 'Open Group' : 'Close Group' %></button>
+          </form>
+          <form method="POST" action="/groups/<%= selectedGroup.id %>/clear-chat" onsubmit="return confirm('Delete ALL messages?')">
+            <button class="btn btn-danger btn-sm" type="submit">Clear Chat</button>
+          </form>
+          <% if (isTM) { %>
+            <form method="POST" action="/groups/<%= selectedGroup.id %>/delete" onsubmit="return confirm('Permanently delete this group?')">
+              <button class="btn btn-danger btn-sm" type="submit">Delete Group</button>
+            </form>
+          <% } %>
+        <% } %>
+      </div>
+
+      <!-- ADMIN PANELS -->
+      <% if (isGA) { %>
+        <div class="admin-panels">
+          <% if (isTM) { %>
+          <details class="admin-panel">
+            <summary>Add Member</summary>
+            <form method="POST" action="/groups/<%= selectedGroup.id %>/add-member" class="inline-form">
+              <select name="userId" required>
+                <% allUsers.forEach(u => { %>
+                  <% if (!users.find(m => m.id === u.id)) { %>
+                    <option value="<%= u.id %>"><%= u.alias %></option>
+                  <% } %>
+                <% }) %>
+              </select>
+              <button class="btn btn-sm" type="submit">Add</button>
+            </form>
+          </details>
+          <% } %>
+
+          <details class="admin-panel">
+            <summary>Remove Member</summary>
+            <form method="POST" action="/groups/<%= selectedGroup.id %>/remove-member" class="inline-form">
+              <select name="userId" required>
+                <% users.forEach(u => { %>
+                  <% if (u.id !== currentUser.id && (isTM || u.role !== 'tunnelmaster')) { %>
+                    <option value="<%= u.id %>"><%= u.alias %></option>
+                  <% } %>
+                <% }) %>
+              </select>
+              <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+            </form>
+          </details>
+
+          <% if (isTM) { %>
+          <details class="admin-panel">
+            <summary>Set Group Admin</summary>
+            <form method="POST" action="/groups/<%= selectedGroup.id %>/set-admin" class="inline-form">
+              <select name="userId" required>
+                <% users.forEach(u => { %>
+                  <% if (u.id !== currentUser.id) { %>
+                    <option value="<%= u.id %>"><%= u.alias %></option>
+                  <% } %>
+                <% }) %>
+              </select>
+              <button class="btn btn-sm" type="submit">Set Admin</button>
+            </form>
+          </details>
+
+          <details class="admin-panel">
+            <summary>Edit Group</summary>
+            <form method="POST" action="/groups/<%= selectedGroup.id %>/edit" enctype="multipart/form-data" class="stack-form" style="padding:10px 0;">
+              <input name="name" value="<%= selectedGroup.name %>" placeholder="Group name" required/>
+              <textarea name="bio" placeholder="Group bio" rows="2"><%= selectedGroup.bio || '' %></textarea>
+              <input type="file" name="groupImage" accept="image/*" class="file-input"/>
+              <button class="btn btn-sm" type="submit">Save Changes</button>
+            </form>
+          </details>
+          <% } %>
+        </div>
+      <% } %>
+
+      <!-- MESSAGES -->
+      <div id="messageList" class="message-list">
+        <% messages.forEach(message => { %>
+          <% if (message.isSystem) { %>
+            <div class="system-msg"><%= message.text %></div>
+          <% } else { %>
+            <% const hiddenForMe = message.deletedForUsers && message.deletedForUsers.includes(ownUserId); %>
+            <% if (!hiddenForMe || isTM) { %>
+              <div class="message-card <%= ownUserId === message.userId ? 'mine' : '' %>" data-id="<%= message.id %>">
+                <div class="message-top">
+                  <div class="msg-author">
+                    <% if (message.profileImage) { %>
+                      <img src="<%= message.profileImage %>" class="chat-avatar" alt="avatar"/>
+                    <% } else { %>
+                      <div class="chat-avatar chat-avatar-ph"><%= (message.alias||'?')[0].toUpperCase() %></div>
+                    <% } %>
+                    <strong><%= message.alias %></strong>
+                    <% if (hiddenForMe && isTM) { %><span class="badge-deleted">Hidden for user</span><% } %>
+                  </div>
+                  <small class="msg-time"><%= new Date(message.createdAt).toLocaleString() %></small>
+                </div>
+
+                <% if (message.isDeletedForEveryone && currentUser.role !== 'tunnelmaster') { %>
+                  <p class="deleted-note">🚫 This message was deleted.</p>
+                <% } else { %>
+                  <% if (message.text) { %><p class="msg-text"><%= message.text %></p><% } %>
+
+                  <% if (message.fileUrl) { %>
+                    <div class="attachment-box">
+                      <% if (message.fileKind === 'image') { %>
+                        <img src="<%= message.fileUrl %>" class="chat-image" alt="attachment"/>
+                      <% } else if (message.fileKind === 'audio') { %>
+                        <audio controls src="<%= message.fileUrl %>"></audio>
+                      <% } else if (message.fileKind === 'video') { %>
+                        <video controls src="<%= message.fileUrl %>" class="chat-video"></video>
+                      <% } else { %>
+                        <a href="<%= message.fileUrl %>" target="_blank" class="file-link">📎 <%= message.fileName %></a>
+                      <% } %>
+                      <a href="<%= message.fileUrl %>" download class="btn btn-sm" style="margin-top:8px;">⬇ Download</a>
+                    </div>
+                  <% } %>
+
+                  <% if (isTM && message.isDeletedForEveryone) { %>
+                    <p class="muted small">Deleted for everyone at <%= message.deletedAt ? new Date(message.deletedAt).toLocaleString() : '' %></p>
+                  <% } %>
+                <% } %>
+
+                <% const fiveMin = (Date.now() - new Date(message.createdAt).getTime()) > 5 * 60 * 1000; %>
+                <% const canDelEveryone = isTM || (ownUserId === message.userId && !fiveMin); %>
+                <% if (ownUserId === message.userId || isTM) { %>
+                  <form method="POST" action="/messages/<%= message.id %>/delete" class="delete-form">
+                    <button class="mini-link" type="submit" name="action" value="deleteForMe">Delete for me</button>
+                    <% if (canDelEveryone) { %>
+                      <button class="mini-link danger" type="submit" name="action" value="deleteForEveryone">Delete for everyone</button>
+                    <% } %>
+                  </form>
+                <% } %>
+              </div>
+            <% } %>
+          <% } %>
+        <% }) %>
+      </div>
+
+      <!-- COMPOSER -->
+      <% if (!selectedGroup.isClosed) { %>
+        <div class="composer-wrap">
+          <form id="messageForm" class="message-form">
+            <input type="hidden" id="groupId" value="<%= selectedGroup.id %>"/>
+            <input type="hidden" id="userId" value="<%= ownUserId %>"/>
+            <input type="text" id="textInput" placeholder="Send a message into the tunnel..." autocomplete="off" <%= selectedGroup.chatPaused ? 'disabled' : '' %>/>
+            <button class="btn btn-send" type="submit" <%= selectedGroup.chatPaused ? 'disabled' : '' %>>Send</button>
+          </form>
+          <form method="POST" action="/upload" enctype="multipart/form-data" class="upload-form">
+            <input type="hidden" name="groupId" value="<%= selectedGroup.id %>"/>
+            <input type="text" name="caption" placeholder="Caption (optional)" <%= selectedGroup.chatPaused ? 'disabled' : '' %>/>
+            <input type="file" name="sharedFile" required class="file-input" <%= selectedGroup.chatPaused ? 'disabled' : '' %>/>
+            <button class="btn btn-sm" <%= selectedGroup.chatPaused ? 'disabled' : '' %>>Upload</button>
+          </form>
+        </div>
+      <% } else { %>
+        <div class="empty-state">🔒 This group is closed.</div>
+      <% } %>
+
+    <% } else { %>
+      <div class="empty-state">
+        <div class="empty-icon">⬡</div>
+        <p>Select a group to enter the tunnel.</p>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('partials/footer', { extraScripts: `
+<script>
+  window.YT_GROUP_ID = '${selectedGroup ? selectedGroup.id : ''}';
+  window.YT_USER_ID = '${ownUserId}';
+</script>
+<script src="/js/chat.js"></script>
+<script src="/js/theme.js"></script>
+` }) %>

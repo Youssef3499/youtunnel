@@ -1,0 +1,281 @@
+<%- include('partials/header', { title: 'YouTunnel — Admin', extraHead: '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>' }) %>
+
+<div class="admin-shell">
+  <aside class="sidebar">
+    <div class="brand-box">
+      <div class="brand-icon">⬡</div>
+      <div>
+        <h2>YouTunnel</h2>
+        <p class="muted small">⚡ TunnelMaster</p>
+      </div>
+    </div>
+    <div class="side-actions" style="margin-top:auto;">
+      <a class="btn btn-ghost" href="/chat">← Chat</a>
+      <a class="btn btn-ghost" href="/logout">Logout</a>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-header">
+      <h1>Control Center</h1>
+      <div class="range-tabs">
+        <% ['today','yesterday','7days','30days','all'].forEach(r => { %>
+          <a href="/admin?range=<%= r %>" class="range-tab <%= range === r ? 'active' : '' %>">
+            <%= r === 'all' ? 'All Time' : r === '7days' ? '7 Days' : r === '30days' ? '30 Days' : r.charAt(0).toUpperCase() + r.slice(1) %>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+
+    <% if (typeof locals.success !== 'undefined' || (typeof locals.query !== 'undefined')) { %>
+      <% const s = locals.success; %>
+      <% if (s === 'created') { %><div class="alert-success">User created successfully.</div><% } %>
+      <% if (s === 'reset') { %><div class="alert-success">Password reset successfully.</div><% } %>
+      <% if (s === 'keyupdated') { %><div class="alert-success">Server key updated.</div><% } %>
+    <% } %>
+
+    <!-- STATS CARDS -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-num"><%= users.length %></div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num"><%= groups.length %></div>
+        <div class="stat-label">Groups</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num"><%= users.reduce((s,u) => s+u.messageCount,0) %></div>
+        <div class="stat-label">Messages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num"><%= users.reduce((s,u) => s+u.fileCount,0) %></div>
+        <div class="stat-label">Files Shared</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num"><%= users.filter(u=>u.isOnline).length %></div>
+        <div class="stat-label">Online Now</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="chart-grid">
+      <div class="chart-box">
+        <h3>Activity Over Time</h3>
+        <canvas id="activityChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Messages by User</h3>
+        <canvas id="userMsgChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Files by User</h3>
+        <canvas id="userFileChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Most Active Groups</h3>
+        <canvas id="groupChart"></canvas>
+      </div>
+    </div>
+
+    <!-- CREATE USER -->
+    <div class="admin-section">
+      <h2>Create User Account</h2>
+      <form method="POST" action="/admin/users/create" class="create-user-form">
+        <input name="username" placeholder="Internal username (login)" required/>
+        <input name="fakeUsername" placeholder="Display name (alias)"/>
+        <input name="password" type="password" placeholder="Password" required/>
+        <input name="serverKey" placeholder="Server key" required/>
+        <select name="role">
+          <option value="user">Normal User</option>
+          <option value="admin">Group Admin</option>
+        </select>
+        <button class="btn" type="submit">Create User</button>
+      </form>
+    </div>
+
+    <!-- CREATE GROUP -->
+    <div class="admin-section">
+      <h2>Create New Group</h2>
+      <form method="POST" action="/groups/create" enctype="multipart/form-data" class="create-user-form">
+        <input name="name" placeholder="Group name" required/>
+        <input name="bio" placeholder="Group bio"/>
+        <input type="file" name="groupImage" accept="image/*" class="file-input"/>
+        <button class="btn" type="submit">Create Group</button>
+      </form>
+    </div>
+
+    <!-- USER TABLE -->
+    <div class="admin-section">
+      <h2>User Analytics Table</h2>
+      <div class="table-wrap">
+        <table class="analytics-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Alias</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Online</th>
+              <th>Last Seen</th>
+              <th>Messages</th>
+              <th>Files</th>
+              <th>Images</th>
+              <th>Audio</th>
+              <th>Video</th>
+              <th>Groups</th>
+              <th>Participation</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% users.forEach(user => { %>
+              <tr class="<%= user.isDisabled ? 'row-disabled' : '' %>">
+                <td><code><%= user.username %></code></td>
+                <td><%= user.alias %></td>
+                <td>
+                  <span class="role-badge role-<%= user.role %>">
+                    <%= user.role === 'tunnelmaster' ? '⚡ TunnelMaster' : user.role === 'admin' ? '🛡 Admin' : '● User' %>
+                  </span>
+                </td>
+                <td><span class="<%= user.isDisabled ? 'badge-closed' : 'badge-open' %>"><%= user.isDisabled ? 'Disabled' : 'Active' %></span></td>
+                <td><span class="online-dot <%= user.isOnline ? 'online' : 'offline' %>"></span> <%= user.isOnline ? 'Yes' : 'No' %></td>
+                <td class="muted small"><%= user.lastSeen ? new Date(user.lastSeen).toLocaleString() : '—' %></td>
+                <td class="num"><%= user.messageCount %></td>
+                <td class="num"><%= user.fileCount %></td>
+                <td class="num"><%= user.imageCount %></td>
+                <td class="num"><%= user.audioCount %></td>
+                <td class="num"><%= user.videoCount %></td>
+                <td class="num"><%= user.groupCount %></td>
+                <td>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width:<%= user.participation %>%"></div>
+                  </div>
+                  <span class="muted small"><%= user.participation %>%</span>
+                </td>
+                <td class="action-cell">
+                  <% if (user.role !== 'tunnelmaster') { %>
+                    <form method="POST" action="/admin/users/<%= user.id %>/toggle-disable" style="display:inline">
+                      <button class="mini-link <%= user.isDisabled ? '' : 'danger' %>" type="submit">
+                        <%= user.isDisabled ? 'Enable' : 'Disable' %>
+                      </button>
+                    </form>
+                    <form method="POST" action="/admin/users/<%= user.id %>/reset-password" style="display:inline" onsubmit="return handleReset(event, this)">
+                      <input type="hidden" name="newPassword" class="reset-pw-input"/>
+                      <button class="mini-link" type="submit">Reset PW</button>
+                    </form>
+                    <form method="POST" action="/admin/users/<%= user.id %>/update-key" style="display:inline" onsubmit="return handleKey(event, this)">
+                      <input type="hidden" name="serverKey" class="update-key-input"/>
+                      <button class="mini-link" type="submit">Update Key</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GROUPS TABLE -->
+    <div class="admin-section">
+      <h2>Groups Overview</h2>
+      <div class="table-wrap">
+        <table class="analytics-table">
+          <thead>
+            <tr><th>Name</th><th>Bio</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <% groups.forEach(group => { %>
+              <tr>
+                <td><a href="/chat?group=<%= group.id %>" class="group-link-inline"><%= group.name %></a></td>
+                <td class="muted small"><%= group.bio || '—' %></td>
+                <td>
+                  <% if (group.isClosed) { %><span class="badge-closed">Closed</span><% } %>
+                  <% if (group.chatPaused) { %><span class="badge-paused">Paused</span><% } %>
+                  <% if (!group.isClosed && !group.chatPaused) { %><span class="badge-open">Active</span><% } %>
+                </td>
+                <td class="muted small"><%= new Date(group.createdAt).toLocaleDateString() %></td>
+                <td>
+                  <form method="POST" action="/groups/<%= group.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this group?')">
+                    <button class="mini-link danger" type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const chartData = <%- JSON.stringify(chartData) %>;
+
+const chartDefaults = {
+  color: '#ccc',
+  plugins: { legend: { labels: { color: '#ccc' } } },
+  scales: {
+    x: { ticks: { color: '#888' }, grid: { color: '#222' } },
+    y: { ticks: { color: '#888' }, grid: { color: '#222' } }
+  }
+};
+
+// Activity over time
+new Chart(document.getElementById('activityChart'), {
+  type: 'line',
+  data: {
+    labels: chartData.activityByDay.map(d => d.day),
+    datasets: [{ label: 'Messages', data: chartData.activityByDay.map(d => d.count), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.15)', tension: 0.4, fill: true }]
+  },
+  options: { ...chartDefaults, plugins: { legend: { labels: { color: '#ccc' } } } }
+});
+
+// Messages by user
+new Chart(document.getElementById('userMsgChart'), {
+  type: 'bar',
+  data: {
+    labels: chartData.messagesByUser.map(d => d.name),
+    datasets: [{ label: 'Messages', data: chartData.messagesByUser.map(d => d.count), backgroundColor: '#dc2626' }]
+  },
+  options: { ...chartDefaults, indexAxis: 'y' }
+});
+
+// Files by user
+new Chart(document.getElementById('userFileChart'), {
+  type: 'bar',
+  data: {
+    labels: chartData.filesByUser.map(d => d.name),
+    datasets: [{ label: 'Files', data: chartData.filesByUser.map(d => d.count), backgroundColor: '#7c3aed' }]
+  },
+  options: { ...chartDefaults, indexAxis: 'y' }
+});
+
+// Most active groups
+new Chart(document.getElementById('groupChart'), {
+  type: 'doughnut',
+  data: {
+    labels: chartData.mostActiveGroups.map(d => d.name),
+    datasets: [{ data: chartData.mostActiveGroups.map(d => d.count), backgroundColor: ['#dc2626','#7c3aed','#2563eb','#059669','#d97706','#db2777','#0891b2','#65a30d','#9333ea','#f59e0b'] }]
+  },
+  options: { plugins: { legend: { labels: { color: '#ccc' } } } }
+});
+
+function handleReset(e, form) {
+  const pw = prompt('Enter new password for this user:');
+  if (!pw) return false;
+  form.querySelector('.reset-pw-input').value = pw;
+  return true;
+}
+function handleKey(e, form) {
+  const key = prompt('Enter new server key for this user:');
+  if (!key) return false;
+  form.querySelector('.update-key-input').value = key;
+  return true;
+}
+</script>
+
+<script src="/js/theme.js"></script>
+<%- include("partials/footer") %>

@@ -1,0 +1,4 @@
+node_modules
+youtunnel.db
+public/uploads
+.env

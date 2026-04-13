@@ -1,0 +1,147 @@
+<%- include('partials/header', { title: 'YouTunnel — DM', extraHead: '<script src="/socket.io/socket.io.js"></script>' }) %>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand-box">
+      <div class="brand-icon">⬡</div>
+      <div>
+        <h2>YouTunnel</h2>
+        <p class="muted small"><%= currentUser.role === 'tunnelmaster' ? '⚡ TunnelMaster' : '● Member' %></p>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Groups</div>
+      <% groups.forEach(group => { %>
+        <a href="/chat?group=<%= group.id %>" class="group-link">
+          <div class="group-tile">
+            <% if (group.image) { %>
+              <img src="<%= group.image %>" class="group-thumb" alt="group"/>
+            <% } else { %>
+              <div class="group-thumb-placeholder">⬡</div>
+            <% } %>
+            <div class="group-tile-info"><strong><%= group.name %></strong></div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Direct Messages</div>
+      <% allUsers.forEach(user => { %>
+        <a href="/dm/<%= user.id %>" class="group-link">
+          <div class="group-tile <%= other.id === user.id ? 'active' : '' %>">
+            <% if (user.profileImage) { %>
+              <img src="<%= user.profileImage %>" class="group-thumb" alt="profile"/>
+            <% } else { %>
+              <div class="group-thumb-placeholder small-ph"><%= (user.alias||'?')[0].toUpperCase() %></div>
+            <% } %>
+            <div class="group-tile-info">
+              <strong><%= user.alias %></strong>
+              <span class="online-dot <%= user.isOnline ? 'online' : 'offline' %>"></span>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+
+    <div class="side-actions">
+      <% if (currentUser.role === 'tunnelmaster') { %>
+        <a class="btn btn-danger" href="/admin">Admin Panel</a>
+      <% } %>
+      <a class="btn btn-ghost" href="/logout">Logout</a>
+    </div>
+  </aside>
+
+  <main class="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <% if (other.profileImage) { %>
+          <img src="<%= other.profileImage %>" class="group-hero-img" alt="profile"/>
+        <% } else { %>
+          <div class="group-hero-placeholder"><%= (other.alias||'?')[0].toUpperCase() %></div>
+        <% } %>
+        <div class="chat-header-info">
+          <h1><%= other.alias %></h1>
+          <% if (other.bio) { %><p class="muted"><%= other.bio %></p><% } %>
+          <div class="header-meta">
+            <span class="online-dot <%= other.isOnline ? 'online' : 'offline' %>"></span>
+            <span><%= other.isOnline ? 'Online' : 'Offline' %></span>
+            <% if (other.lastSeen) { %><span class="muted small">· Last seen <%= new Date(other.lastSeen).toLocaleString() %></span><% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="messageList" class="message-list">
+      <% messages.forEach(message => { %>
+        <% const hiddenForMe = message.deletedForUsers && message.deletedForUsers.includes(ownUserId); %>
+        <% if (!hiddenForMe) { %>
+          <div class="message-card <%= ownUserId === message.userId ? 'mine' : '' %>">
+            <div class="message-top">
+              <div class="msg-author">
+                <% if (message.profileImage) { %>
+                  <img src="<%= message.profileImage %>" class="chat-avatar" alt="avatar"/>
+                <% } else { %>
+                  <div class="chat-avatar chat-avatar-ph"><%= (message.alias||'?')[0].toUpperCase() %></div>
+                <% } %>
+                <strong><%= message.alias %></strong>
+              </div>
+              <small class="msg-time"><%= new Date(message.createdAt).toLocaleString() %></small>
+            </div>
+
+            <% if (message.isDeletedForEveryone) { %>
+              <p class="deleted-note">🚫 This message was deleted.</p>
+            <% } else { %>
+              <% if (message.text) { %><p class="msg-text"><%= message.text %></p><% } %>
+              <% if (message.fileUrl) { %>
+                <div class="attachment-box">
+                  <% if (message.fileKind === 'image') { %>
+                    <img src="<%= message.fileUrl %>" class="chat-image" alt="attachment"/>
+                  <% } else if (message.fileKind === 'audio') { %>
+                    <audio controls src="<%= message.fileUrl %>"></audio>
+                  <% } else if (message.fileKind === 'video') { %>
+                    <video controls src="<%= message.fileUrl %>" class="chat-video"></video>
+                  <% } else { %>
+                    <a href="<%= message.fileUrl %>" target="_blank" class="file-link">📎 <%= message.fileName %></a>
+                  <% } %>
+                  <a href="<%= message.fileUrl %>" download class="btn btn-sm" style="margin-top:8px;">⬇ Download</a>
+                </div>
+              <% } %>
+            <% } %>
+
+            <% const fiveMin = (Date.now() - new Date(message.createdAt).getTime()) > 5 * 60 * 1000; %>
+            <% if (ownUserId === message.userId) { %>
+              <form method="POST" action="/messages/<%= message.id %>/delete" class="delete-form">
+                <button class="mini-link" type="submit" name="action" value="deleteForMe">Delete for me</button>
+                <% if (!fiveMin) { %>
+                  <button class="mini-link danger" type="submit" name="action" value="deleteForEveryone">Delete for everyone</button>
+                <% } %>
+              </form>
+            <% } %>
+          </div>
+        <% } %>
+      <% }) %>
+    </div>
+
+    <div class="composer-wrap">
+      <form method="POST" action="/dm/conversation/<%= dm.id %>/send" class="message-form">
+        <input type="text" name="text" placeholder="Message <%= other.alias %>..." autocomplete="off" required/>
+        <button class="btn btn-send" type="submit">Send</button>
+      </form>
+      <form method="POST" action="/dm/conversation/<%= dm.id %>/upload" enctype="multipart/form-data" class="upload-form">
+        <input type="text" name="caption" placeholder="Caption (optional)"/>
+        <input type="file" name="sharedFile" required class="file-input"/>
+        <button class="btn btn-sm" type="submit">Upload</button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<%- include('partials/footer', { extraScripts: `
+<script>
+  window.YT_DM_ID = '${dm.id}';
+  window.YT_USER_ID = '${ownUserId}';
+</script>
+<script src="/js/chat.js"></script>
+` }) %>
