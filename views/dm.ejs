@@ -34,7 +34,7 @@
             <% if (user.profileImage) { %>
               <img src="<%= user.profileImage %>" class="group-thumb" alt="profile"/>
             <% } else { %>
-              <div class="group-thumb-placeholder small-ph"><%= (user.alias||'?')[0].toUpperCase() %></div>
+              <div class="group-thumb-placeholder small-ph"><%= (user.alias || '?')[0].toUpperCase() %></div>
             <% } %>
             <div class="group-tile-info">
               <strong><%= user.alias %></strong>
@@ -59,7 +59,7 @@
         <% if (other.profileImage) { %>
           <img src="<%= other.profileImage %>" class="group-hero-img" alt="profile"/>
         <% } else { %>
-          <div class="group-hero-placeholder"><%= (other.alias||'?')[0].toUpperCase() %></div>
+          <div class="group-hero-placeholder"><%= (other.alias || '?')[0].toUpperCase() %></div>
         <% } %>
         <div class="chat-header-info">
           <h1><%= other.alias %></h1>
@@ -67,7 +67,9 @@
           <div class="header-meta">
             <span class="online-dot <%= other.isOnline ? 'online' : 'offline' %>"></span>
             <span><%= other.isOnline ? 'Online' : 'Offline' %></span>
-            <% if (other.lastSeen) { %><span class="muted small">· Last seen <%= new Date(other.lastSeen).toLocaleString() %></span><% } %>
+            <% if (other.lastSeen) { %>
+              <span class="muted small">· Last seen <%= new Date(other.lastSeen).toLocaleString() %></span>
+            <% } %>
           </div>
         </div>
       </div>
@@ -83,7 +85,7 @@
                 <% if (message.profileImage) { %>
                   <img src="<%= message.profileImage %>" class="chat-avatar" alt="avatar"/>
                 <% } else { %>
-                  <div class="chat-avatar chat-avatar-ph"><%= (message.alias||'?')[0].toUpperCase() %></div>
+                  <div class="chat-avatar chat-avatar-ph"><%= (message.alias || '?')[0].toUpperCase() %></div>
                 <% } %>
                 <strong><%= message.alias %></strong>
               </div>
@@ -139,74 +141,78 @@
   </main>
 </div>
 
-<%- include('partials/footer', { extraScripts: `
 <script>
   const socket = io();
-  const dmId = '<%= dm.id %>';
-  const currentUserId = '<%= ownUserId %>';
+  const dmId = "<%= dm.id %>";
+  const currentUserId = "<%= ownUserId %>";
 
-  const form = document.getElementById('dmForm');
-  const input = document.getElementById('dmInput');
-  const messageList = document.getElementById('messageList');
+  const form = document.getElementById("dmForm");
+  const input = document.getElementById("dmInput");
+  const messageList = document.getElementById("messageList");
 
-  socket.emit('user-online', currentUserId);
-  socket.emit('join-dm', dmId);
+  socket.emit("user-online", currentUserId);
+  socket.emit("join-dm", dmId);
 
   function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text || '';
+    const div = document.createElement("div");
+    div.textContent = text || "";
     return div.innerHTML;
   }
 
   function addDmMessage(message) {
     const mine = String(message.userId) === String(currentUserId);
-    const profileImage = message.profileImage || '';
-    const alias = message.alias || 'User';
+    const profileImage = message.profileImage || "";
+    const alias = message.alias || "User";
     const createdAt = new Date(message.createdAt).toLocaleString();
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'message-card' + (mine ? ' mine' : '');
+    const wrapper = document.createElement("div");
+    wrapper.className = "message-card" + (mine ? " mine" : "");
 
-    wrapper.innerHTML = \`
-      <div class="message-top">
-        <div class="msg-author">
-          \${profileImage
-            ? \`<img src="\${escapeHtml(profileImage)}" class="chat-avatar" alt="avatar"/>\`
-            : \`<div class="chat-avatar chat-avatar-ph">\${escapeHtml((alias || '?')[0].toUpperCase())}</div>\`}
-          <strong>\${escapeHtml(alias)}</strong>
-        </div>
-        <small class="msg-time">\${escapeHtml(createdAt)}</small>
-      </div>
-      <p class="msg-text">\${escapeHtml(message.text)}</p>
-    \`;
+    let avatarHtml = "";
+    if (profileImage) {
+      avatarHtml = '<img src="' + escapeHtml(profileImage) + '" class="chat-avatar" alt="avatar"/>';
+    } else {
+      avatarHtml = '<div class="chat-avatar chat-avatar-ph">' + escapeHtml((alias || "?")[0].toUpperCase()) + "</div>";
+    }
+
+    wrapper.innerHTML =
+      '<div class="message-top">' +
+        '<div class="msg-author">' +
+          avatarHtml +
+          "<strong>" + escapeHtml(alias) + "</strong>" +
+        "</div>" +
+        '<small class="msg-time">' + escapeHtml(createdAt) + "</small>" +
+      "</div>" +
+      '<p class="msg-text">' + escapeHtml(message.text) + "</p>";
 
     messageList.appendChild(wrapper);
     messageList.scrollTop = messageList.scrollHeight;
   }
 
-  form.addEventListener('submit', function(e) {
+  form.addEventListener("submit", function (e) {
     e.preventDefault();
 
     const text = input.value.trim();
     if (!text) return;
 
-    socket.emit('dm-message', {
+    socket.emit("dm-message", {
       dmId: dmId,
       userId: currentUserId,
       text: text
     });
 
-    input.value = '';
+    input.value = "";
     input.focus();
   });
 
-  socket.on('dm-message', function(message) {
+  socket.on("dm-message", function (message) {
     if (String(message.dmId) !== String(dmId)) return;
     addDmMessage(message);
   });
 
-  window.addEventListener('load', function() {
+  window.addEventListener("load", function () {
     messageList.scrollTop = messageList.scrollHeight;
   });
 </script>
-` }) %>
+
+<%- include('partials/footer') %>
