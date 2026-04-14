@@ -125,10 +125,11 @@
     </div>
 
     <div class="composer-wrap">
-      <form method="POST" action="/dm/conversation/<%= dm.id %>/send" class="message-form">
-        <input type="text" name="text" placeholder="Message <%= other.alias %>..." autocomplete="off" required/>
+      <form id="dmForm" class="message-form">
+        <input id="dmInput" type="text" name="text" placeholder="Message <%= other.alias %>..." autocomplete="off" required />
         <button class="btn btn-send" type="submit">Send</button>
       </form>
+
       <form method="POST" action="/dm/conversation/<%= dm.id %>/upload" enctype="multipart/form-data" class="upload-form">
         <input type="text" name="caption" placeholder="Caption (optional)"/>
         <input type="file" name="sharedFile" required class="file-input"/>
@@ -140,8 +141,72 @@
 
 <%- include('partials/footer', { extraScripts: `
 <script>
-  window.YT_DM_ID = '${dm.id}';
-  window.YT_USER_ID = '${ownUserId}';
+  const socket = io();
+  const dmId = '<%= dm.id %>';
+  const currentUserId = '<%= ownUserId %>';
+
+  const form = document.getElementById('dmForm');
+  const input = document.getElementById('dmInput');
+  const messageList = document.getElementById('messageList');
+
+  socket.emit('user-online', currentUserId);
+  socket.emit('join-dm', dmId);
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+
+  function addDmMessage(message) {
+    const mine = String(message.userId) === String(currentUserId);
+    const profileImage = message.profileImage || '';
+    const alias = message.alias || 'User';
+    const createdAt = new Date(message.createdAt).toLocaleString();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message-card' + (mine ? ' mine' : '');
+
+    wrapper.innerHTML = \`
+      <div class="message-top">
+        <div class="msg-author">
+          \${profileImage
+            ? \`<img src="\${escapeHtml(profileImage)}" class="chat-avatar" alt="avatar"/>\`
+            : \`<div class="chat-avatar chat-avatar-ph">\${escapeHtml((alias || '?')[0].toUpperCase())}</div>\`}
+          <strong>\${escapeHtml(alias)}</strong>
+        </div>
+        <small class="msg-time">\${escapeHtml(createdAt)}</small>
+      </div>
+      <p class="msg-text">\${escapeHtml(message.text)}</p>
+    \`;
+
+    messageList.appendChild(wrapper);
+    messageList.scrollTop = messageList.scrollHeight;
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    socket.emit('dm-message', {
+      dmId: dmId,
+      userId: currentUserId,
+      text: text
+    });
+
+    input.value = '';
+    input.focus();
+  });
+
+  socket.on('dm-message', function(message) {
+    if (String(message.dmId) !== String(dmId)) return;
+    addDmMessage(message);
+  });
+
+  window.addEventListener('load', function() {
+    messageList.scrollTop = messageList.scrollHeight;
+  });
 </script>
-<script src="/js/chat.js"></script>
 ` }) %>
